@@ -1,0 +1,1 @@
+[p(p1,fall,dota2,house,employee),p(p2,spring,lol,apartment,unemployed),p(p3,summer,football,apartment,employee),p(p4,winter,tennis,apartment,student)]
