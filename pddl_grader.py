@@ -5,6 +5,21 @@ from tqdm import tqdm
 import time
 import argparse
 
+def rename_files(directory):
+
+    for filename in tqdm(os.listdir(directory)):
+        try:
+            file_path = os.path.join(directory, filename)
+
+            processed_filename = "_".join(filename.split("_")[3:])
+
+            processed_file_path = os.path.join(directory, processed_filename)
+
+            os.rename(file_path, processed_file_path)
+
+        except Exception as e:
+            print(f"Error renaming file {filename}: {e}")
+
 def solve_pddl(domain_path, problem_path):
     """
     Sends a domain and problem PDDL file to the solver API and retrieves the plan.
@@ -78,34 +93,8 @@ def grade_pddl_files(directory, baseline_file_path, baseline_plan, mode):
                 results.append([student_name[0], student_name[1], "Pass"])
             else:
                 results.append([student_name[0], student_name[1], "Fail"])
-
-def grade_problem_files(directory, domain_file_path, baseline_plan):
-    """
-    Grades all the PDDL files in a directory.
-
-    Args:
-        directory (str): Path to the directory containing the PDDL files
-        problem_file (str): The problem file's path.
-        baseline_plan (str): The baseline solution.
-
-    Returns:
-        list: Grading results for each student file.
-    """
-    results = []
-    # Process each student's submission
-    for filename in tqdm(os.listdir(directory)):
-        if filename.endswith(".pddl"):
-            student = os.path.splitext(filename)[0]
-            student_name = student.split("_")[:2]
-            # Solve the student's problem using their problem and fixed domain
-            student_problem_path = os.path.join(directory, filename)
-            student_plan = solve_pddl(domain_file_path, student_problem_path)
-
-            # Determine pass/fail
-            if student_plan is not None and compare_plans(student_plan, baseline_plan):
-                results.append([student_name[0], student_name[1], "Pass"])
-            else:
-                results.append([student_name[0], student_name[1], "Fail"])
+                
+    return results
 
 def main(mode):
     pddl_1_submissions = "./pddl_1_submissions"  # Directory with student domain files
@@ -119,6 +108,8 @@ def main(mode):
 
     baseline_solutions_path = "./pddl_accepted_solutions.txt"  # Directory of baseline solutions, in case the solution is not unique
     
+    #rename_files(pddl_1_submissions)
+
     if mode == 1:
         student_dir = pddl_1_submissions
         baseline_plan = solve_pddl(baseline_domain_file, baseline_problem_1_file)

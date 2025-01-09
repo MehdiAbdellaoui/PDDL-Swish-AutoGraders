@@ -7,12 +7,19 @@ def preprocess_files(directory):
 
     for filename in tqdm(os.listdir(directory)):
         try:
-            with open(os.path.join(directory, filename), "r") as file:
+            file_path = os.path.join(directory, filename)
+
+            with open(file_path, "r") as file:
                 lines = file.readlines()
 
             preprocessed_lines = [line for line in lines if "use_rendering" not in line]
+            processed_filename = "_".join(filename.split("_")[3:])
 
-            with open(os.path.join(directory, filename), "w") as file:
+            processed_file_path = os.path.join(directory, processed_filename)
+
+            os.rename(file_path, processed_file_path)
+
+            with open(processed_file_path, "w") as file:
                 file.writelines(preprocessed_lines)
 
         except Exception as e:
@@ -38,16 +45,13 @@ def run_prolog(prolog_file):
             text=True
         )
         # Capture output and errors
-        if process.returncode == 0:
-            output = process.stdout.strip()
-            result = output if output else f"Error : No output"
-        else:
-            result = f"Error: {process.stderr.strip()}"
-
+        if process.returncode != 0:
+            return False, process.stderr.strip()
+        
+        return True, process.stdout.strip()
+    
     except Exception as e:
-        result = f"Exception: {str(e)}"
-
-    return result
+            return False, f"Exception: {str(e)}"
 
 def compare_solutions(student_solution, baseline_solution):
     """
@@ -67,17 +71,31 @@ def grade_prolog_files(directory, baseline_solution):
     """
     grades = []
     for filename in tqdm(os.listdir(directory)):
-        if filename.endswith(".pl"):
+        if filename.endswith(".pl") or filename.endswith(".PL"):
             student = os.path.splitext(filename)[0]
             student_name = student.split("_")[:2]
+
+            #tqdm.write(f"Processing: {student}")
+
             student_solution_path = os.path.join(directory, filename)
 
-            student_solution = run_prolog(student_solution_path)
+            success, student_solution = run_prolog(student_solution_path)
 
-            if student_solution is not None and compare_solutions(student_solution, baseline_solution):
-                grades.append([student_name[0], student_name[1], "Pass"])
-            else:
-                grades.append([student_name[0], student_name[1], "Fail"])
+            if not success:
+                result = "Fail"
+                if "Syntax error" in student_solution:
+                    reason = "Syntax Error"
+                else:
+                    reason = "Runtime Error"
+            
+            elif compare_solutions(student_solution, baseline_solution):
+                result = "Pass"
+                reason = ""
+            else: 
+                result = "Fail"
+                reason = "Wrong Answer"
+            
+            grades.append([student_name[0], student_name[1], result, reason])
 
     return grades
 
@@ -93,9 +111,9 @@ def main():
         baseline_solution = baseline_solution_file.read().strip()
 
     # Preprocess the files to remove the use_rendering directive
-    preprocess_files(prolog_files_directory)
+    #preprocess_files(prolog_files_directory)
 
-    # Grade files
+    #Grade files
     results = grade_prolog_files(prolog_files_directory, baseline_solution)
 
     # Sort the students by their Last Name
@@ -104,7 +122,7 @@ def main():
     # Save results to the CSV file 
     with open(output_csv, "w", newline="") as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["Last Name", "First Name", "Result"])
+        csv_writer.writerow(["Last Name", "First Name", "Result", "Reason"])
         csv_writer.writerows(sorted_results)
 
     print(f"Grading completed. Results saved to {output_csv}")

@@ -1,3 +1,4 @@
-pddl_1_submissions
-pddl_2_submissions
-prolog_submissions
+pddl_1_submissions/*
+pddl_2_submissions/*
+prolog_submissions/*
+.DS_Store
