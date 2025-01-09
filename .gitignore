@@ -1,4 +1,10 @@
 pddl_1_submissions/*
+!pddl_1_submissions/
+!pddl_1_submissions/.gitkeep
 pddl_2_submissions/*
+!pddl_2_submissions/
+!pddl_2_submissions/.gitkeep
 prolog_submissions/*
+!prolog_submissions/
+!prolog_submissions/.gitkeep
 .DS_Store
