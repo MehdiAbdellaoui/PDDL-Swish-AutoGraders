@@ -1,0 +1,12 @@
+[
+    "",
+    "(travel-short ap2 ap1 train2)\n(travel-short ap1 s11 train2)\n(move person train2 s11)\n(travel-short s11 ap1 train2)\n(travel-short ap1 ap2 train2)\n(travel-short ap2 s22 train2)\n(leave-vehicle person train2 s22)",
+    "(travel-short s12 s11 train2)\n(enter-vehicle person train2 s11)\n(travel-short s21 s22 s11)\n(leave-vehicle person s11 s22)",
+    "Raw Result",
+    "(travel-short s12 s11 train2)\n(enter-vehicle person train2 s11)\n(travel-short s21 s22 train2)\n(leave-vehicle person train2 s22)",
+    "(travel-short ap2 ap1 train2)\n(travel-short ap1 s11 train2)\n(enter-vehicle person train2 s11)\n(travel-short s11 ap1 train2)\n(travel-short ap1 ap2 train2)\n(travel-short ap2 s22 train2)\n(leave-vehicle person train2 s22)",
+    "(travel-short ap2 s22 train2)\n(travel-short ap2 s11 train2)\n(enter-vehicle person train2 s11)\n(leave-vehicle person train2 s22)",
+    "(travel-short ap1 s11 train1)\n(enter-vehicle person train1 s11)\n(travel-short s11 ap1 train1)\n(leave-vehicle person train1 ap1)\n(travel-long ap2 ap1 plane)\n(enter-vehicle person plane ap1)\n(travel-long ap1 ap2 plane)\n(travel-long ap2 s22 plane)\n(leave-vehicle person plane s22)",
+    "(travel-short s12 s11 train2)\n(travel-short s21 s22 train2)\n(enter-vehicle person train2 s11)\n(leave-vehicle person train2 s22)",
+    "(travel-short ap2 ap1 train2)\n(travel-long ap1 s11 train2)\n(enter-vehicle person train2 s11)\n(travel-short s11 ap1 train2)\n(travel-short ap1 ap2 train2)\n(travel-short ap2 s22 train2)\n(leave-vehicle person train2 s22)"
+]

@@ -5,6 +5,13 @@ from tqdm import tqdm
 import time
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
+import threading
+
+ACCEPTED_SOLUTIONS = set() # Set of accepted solutions (filled interactively)
+REJECTED_SOLUTIONS = set() # Set of rejected solutions (filled interactively)
+
+SOLUTION_LOCK = threading.Lock() 
 
 def rename_files(directory):
 
@@ -62,7 +69,7 @@ def compare_plans(student_plan, baseline_plan):
     """
     return student_plan == baseline_plan
 
-def process_student_file(student_file_path, baseline_file_path, baseline_plan, mode, wrong_solution):
+def process_student_file(student_file_path, baseline_file_path, baseline_plan, mode):
     """
     Processes a single student's PDDL file.
     """
@@ -84,17 +91,35 @@ def process_student_file(student_file_path, baseline_file_path, baseline_plan, m
         result = "Pass"
         reason = ""
 
-    elif compare_plans(student_plan, wrong_solution):
-        result = "Fail"
-        reason = "Incorrect Solution"
-
     else:
         result = "Fail"
         reason = "Wrong Answer (Unknown)"
 
-    return [student_name[0], student_name[1], result, reason]
+    return student_name[0], student_name[1], result, reason, student_plan
 
-def grade_pddl_files(directory, baseline_file_path, baseline_plan, mode, wrong_solution=None):
+def handle_unknown_solution(solution):
+    with SOLUTION_LOCK:
+        if solution in REJECTED_SOLUTIONS:
+            return "Fail", "Rejected"
+        
+        elif solution in ACCEPTED_SOLUTIONS:
+            return "Pass", ""
+
+        print(f"\nUnknown solution encountered:\n{solution}\n")
+
+        user_input = input("Accept this solution? (y/n): ").strip().lower()
+        while user_input not in ('y', 'n'):
+            user_input = input("Please enter 'y' for yes or 'n' for no: ").strip().lower()
+
+        if user_input == 'y':
+            ACCEPTED_SOLUTIONS.add(solution)
+            return "Pass", ""
+        else:
+            REJECTED_SOLUTIONS.add(solution)
+            return "Fail", "Rejected"
+
+
+def grade_pddl_files(directory, baseline_file_path, baseline_plan, mode):
     """
     Grades all the PDDL files in a directory.
 
@@ -109,23 +134,30 @@ def grade_pddl_files(directory, baseline_file_path, baseline_plan, mode, wrong_s
     """
     results = []
     student_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".pddl")]
-
+        
     # Process files in parallel using ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=8) as executor:
         future_to_file = {
-            executor.submit(process_student_file, file, baseline_file_path, baseline_plan, mode, wrong_solution): file
+            executor.submit(process_student_file, file, baseline_file_path, baseline_plan, mode): file
             for file in student_files
         }
 
         for future in tqdm(as_completed(future_to_file), total=len(student_files)):
             try: 
-                results.append(future.result())
+                student_last_name, student_first_name, result, reason, student_plan = future.result()
+
+                if result == "Fail" and reason == "Wrong Answer (Unknown)":
+                    result, reason = handle_unknown_solution(student_plan)
+
+                
+                results.append([student_last_name, student_first_name, result, reason])
+                
             except Exception as e:
                 print(f"Error processing file {future_to_file[future]}: {e}")
             
-    return results
+    return results    
 
-def main(mode, file, rename):
+def main(mode, file, rename, init_solutions):
     pddl_1_submissions = "./pddl_1_submissions"  # Directory with student domain files
     pddl_2_submissions = "./pddl_2_submissions" # Directory with student problem files
     pddl_1_grades = "pddl_1_grades.csv"  # Output CSV file for PDDL 1
@@ -133,18 +165,19 @@ def main(mode, file, rename):
 
     baseline_problem_1_file = "./baseline_problem_1.pddl"  # Fixed baseline problem file (for PDDL 1)
     baseline_problem_2_file = "./baseline_problem_2.pddl"  # Fixed baseline problem file (for PDDL 2)
-    baseline_domain_file = "./baseline_domain.pddl" # Fixed baseline domain file (for PDDL 1 and 2)
+    baseline_domain_file = "./baseline_domain.pddl" # Fixed baseline domain file (for PDDL 1 and 2)   
 
-    baseline_solutions_path = "./pddl_accepted_solutions.txt"  # Directory of baseline solutions, in case the solution is not unique
-    wrong_solution_path = "./pddl_wrong_solution.txt"
-   
-    with open(wrong_solution_path, 'r') as wrong_solution_file:
-        wrong_solution = wrong_solution_file.read()
+    accepted_solutions_file_1 = "accepted_solutions_1.json"
+    rejected_solutions_file_1 = "rejected_solutions_1.json"
+    accepted_solutions_file_2 = "accepted_solutions_2.json"
+    rejected_solutions_file_2 = "rejected_solutions_2.json"
 
     if mode == 1:
         baseline_plan = solve_pddl(baseline_domain_file, baseline_problem_1_file)
+        accepted_solutions_file = accepted_solutions_file_1
+        rejected_solutions_file = rejected_solutions_file_1  
         if file:
-            print(process_student_file(file, baseline_problem_1_file, baseline_plan, mode, wrong_solution))
+            print(process_student_file(file, baseline_problem_1_file, baseline_plan, mode))
             #student_plan = solve_pddl(file, baseline_problem_1_file)
             #print(f"Student Plan:\n{student_plan}")
             return
@@ -152,17 +185,37 @@ def main(mode, file, rename):
             student_dir = pddl_1_submissions
             baseline_file = baseline_problem_1_file
             output_csv = pddl_1_grades
+
     else: 
         baseline_plan = solve_pddl(baseline_domain_file, baseline_problem_2_file)
+        accepted_solutions_file = accepted_solutions_file_2
+        rejected_solutions_file = rejected_solutions_file_2
         if file:
-            print(process_student_file(file, baseline_domain_file, baseline_plan, mode, wrong_solution))
+            print(process_student_file(file, baseline_domain_file, baseline_plan, mode))
             #student_plan = solve_pddl(baseline_domain_file, file)
             #print(f"Student Plan:\n{student_plan}")
             return
         else:
             student_dir = pddl_2_submissions
             baseline_file = baseline_domain_file
-            output_csv = pddl_2_grades
+            output_csv = pddl_2_grades            
+        
+    if init_solutions:
+        print("Initializing accepted and rejected solutions from file...")
+        if os.path.exists(accepted_solutions_file):
+            with open(accepted_solutions_file, "r") as f:
+                ACCEPTED_SOLUTIONS = set(json.load(f))
+            print(f"Loaded {len(ACCEPTED_SOLUTIONS)} accepted solutions.")
+        else:
+            print("Accepted solutions file not found. Initializing empty set.")
+
+        # Load rejected solutions
+        if os.path.exists(rejected_solutions_file):
+            with open(rejected_solutions_file, "r") as f:
+                REJECTED_SOLUTIONS = set(json.load(f))
+            print(f"Loaded {len(REJECTED_SOLUTIONS)} rejected solutions.")
+        else:
+            print("Rejected solutions file not found. Initializing empty set.")
 
     if baseline_plan is None:
         print("Error: Could not retrieve baseline solution.")
@@ -173,10 +226,17 @@ def main(mode, file, rename):
         rename_files(student_dir)
 
     # Grade files
-    results = grade_pddl_files(student_dir, baseline_file, baseline_plan, mode, wrong_solution)
+    results = grade_pddl_files(student_dir, baseline_file, baseline_plan, mode)
 
     # Sort the students by their Last Name
     sorted_results = sorted(results, key = lambda x: x[0].lower())
+
+     # Save accepted and rejected solutions to files
+    with open(accepted_solutions_file, 'w') as accepted_output:
+        json.dump(list(ACCEPTED_SOLUTIONS), accepted_output, indent=4)
+
+    with open(rejected_solutions_file, 'w') as rejected_output:
+        json.dump(list(REJECTED_SOLUTIONS), rejected_output, indent=4)
 
     # Write results to a CSV file
     with open(output_csv, "w", newline="") as csvfile:
@@ -203,11 +263,17 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--rename",
+        action="store_true",
         help="Rename the Canvas Dump files before grading."
+    )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help="Initialize the accepted and rejected solutions."
     )
     
     # Parse arguments
     args = parser.parse_args()
 
     # Call main with parsed mode
-    main(mode=args.mode, file=args.file, rename=args.rename)
+    main(mode=args.mode, file=args.file, rename=args.rename, init_solutions=args.init)
